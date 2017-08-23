@@ -89,84 +89,6 @@ function mkPubkeyHashScript (address: string): string {
   )
 }
 
-/* More info: https://github.com/MyHush/hushblob/master/src/script/standard.cpp#L377
- * Given an address, generates a pubkeyhash type script needed for the transaction
- * @param {String} address
- * return {String} pubKeyScript
- */
-function mkPubkeyHashReplayScript (address: string): string {
-  var addrHex = bs58check.decode(address).toString('hex')
-
-  // Cut out the first 4 bytes (pubKeyHash)
-  var subAddrHex = addrHex.substring(4, addrHex.length)
-
-  // TODO: change this so it gets block hash and height via REST API
-  var blockHeight = 142091
-
-  var blockHeightBuffer = Buffer.alloc(4)
-  blockHeightBuffer.writeUInt32LE(blockHeight, 0)
-  if (blockHeightBuffer[3] === 0x00) {
-    blockHeightBuffer = blockHeightBuffer.slice(0, 3)
-  }
-  var blockHeightHex = blockHeightBuffer.toString('hex')
-
-  // Need to reverse it
-  var blockHash = '00000001cf4e27ce1dd8028408ed0a48edd445ba388170c9468ba0d42fff3052'
-  var blockHashHex = Buffer.from(blockHash, 'hex').reverse().toString('hex')
-
-  // '14' is the length of the subAddrHex (in bytes)
-  return (
-    zopcodes.OP_DUP +
-    zopcodes.OP_HASH160 +
-    getStringBufferLength(subAddrHex) +
-    subAddrHex +
-    zopcodes.OP_EQUALVERIFY +
-    zopcodes.OP_CHECKSIG +
-    getStringBufferLength(blockHashHex) +
-    blockHashHex +
-    getStringBufferLength(blockHeightHex) +
-    blockHeightHex +
-    zopcodes.OP_CHECKBLOCKATHEIGHT
-  )
-}
-
-/*
- * Given an address, generates a script hash type script needed for the transaction
- * @param {String} address
- * return {String} scriptHash script
- */
-function mkScriptHashScript (address: string): string {
-  var addrHex = bs58check.decode(address).toString('hex')
-  var subAddrHex = addrHex.substring(4, addrHex.length) // Cut out the '00' (we also only want 14 bytes instead of 16)
-
-  // TODO: change this so it gets block hash and height via REST API
-  var blockHeight = 142091
-
-  var blockHeightBuffer = Buffer.alloc(4)
-  blockHeightBuffer.writeUInt32LE(blockHeight, 0)
-  if (blockHeightBuffer[3] === 0x00) {
-    blockHeightBuffer = blockHeightBuffer.slice(0, 3)
-  }
-  var blockHeightHex = blockHeightBuffer.toString('hex')
-
-  // Need to reverse it
-  var blockHash = '00000001cf4e27ce1dd8028408ed0a48edd445ba388170c9468ba0d42fff3052'
-  var blockHashHex = Buffer.from(blockHash, 'hex').reverse().toString('hex')
-
-  // '14' is the length of the subAddrHex (in bytes)
-  return (
-    zopcodes.OP_HASH160 +
-    '14' +
-    subAddrHex +
-    zopcodes.OP_EQUAL +
-    getStringBufferLength(blockHashHex) +
-    blockHashHex +
-    getStringBufferLength(blockHeightHex) +
-    blockHeightHex +
-    zopcodes.OP_CHECKBLOCKATHEIGHT
-  )
-}
-
 /*
  * Given an address, generates an output script
  * @param {String} address
@@ -180,7 +102,7 @@ function addressToScript (address: string): string {
 
   // P2PKH-replay is a replacement for P2PKH
   // P2PKH-replay starts with a 0
-  return mkPubkeyHashReplayScript(address)
+  return mkPubkeyHashScript(address)
 }
 
 /*
@@ -360,7 +282,6 @@ module.exports = {
   addressToScript: addressToScript,
   createRawTx: createRawTx,
   getStringBufferLength: getStringBufferLength,
-  mkPubkeyHashReplayScript: mkPubkeyHashReplayScript,
   mkScriptHashScript: mkScriptHashScript,
   mkPubkeyHashScript: mkPubkeyHashScript,
   numToVarInt: numToVarInt,
