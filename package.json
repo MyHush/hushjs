@@ -1,6 +1,6 @@
 {
   "name": "hushjs",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Dead easy to use Hush JavaScript based library",
   "main": "./lib/index.js",
   "repository": "https://github.com/MyHush/hushjs.git",
@@ -12,16 +12,18 @@
     "bs58check": "^2.0.2",
     "create-hash": "^1.1.3",
     "create-hmac": "^1.1.6",
-    "crypto-js": "^3.1.9-1",
+    "elliptic": "^6.4.0",
     "int64-buffer": "^0.1.9",
+    "libsodium-sumo": "^0.5.2",
+    "libsodium-wrappers-sumo": "^0.5.2",
     "safe-buffer": "^5.1.1",
     "secp256k1": "^3.3.0",
-    "sjcl": "^1.0.7",
-    "typeforce": "^1.11.1"
+    "varuint-bitcoin": "^1.0.4"
   },
   "scripts": {
     "build": "babel src/ -d lib/",
     "watch-build": "babel --watch src/ -d lib/",
+    "cleanup": "rm -rf ./lib && mkdir lib",
     "prepublic": "yarn run build",
     "test": "mocha"
   },
