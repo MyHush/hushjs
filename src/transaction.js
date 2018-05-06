@@ -1,6 +1,5 @@
 var bs58check = require('bs58check');
-var elliptic = require('elliptic');
-var secp256k1 = new elliptic.ec('secp256k1');
+var secp256k1 = require('secp256k1');
 var int64buffer = require('int64-buffer');
 var varuint = require('varuint-bitcoin');
 var zconfig = require('./config');
@@ -14,12 +13,10 @@ var zbufferutils = require('./bufferutils');
 /* More info: https://github.com/ZencashOfficial/zen/blob/master/src/script/standard.cpp#L377
  * Given an address, generates a pubkeyhash replay type script needed for the transaction
  * @param {String} address
- * @param {Number} blockHeight
- * @param {Number} blockHash
  * @param {String} pubKeyHash (optional)
  * return {String} pubKeyScript
  */
-function mkPubkeyHashReplayScript(address, blockHeight, blockHash, pubKeyHash) {
+function mkPubkeyHashReplayScript(address, pubKeyHash) {
   // Get lengh of pubKeyHash (so we know where to substr later on)
   pubKeyHash = pubKeyHash || zconfig.mainnet.pubKeyHash;
 
@@ -28,38 +25,37 @@ function mkPubkeyHashReplayScript(address, blockHeight, blockHash, pubKeyHash) {
   // Cut out pubKeyHash
   var subAddrHex = addrHex.substring(pubKeyHash.length, addrHex.length);
 
-  // Minimal encoding
-  var blockHeightBuffer = Buffer.alloc(4);
-  blockHeightBuffer.writeUInt32LE(blockHeight, 0);
-  if (blockHeightBuffer[3] === 0x00) {
-    blockHeightBuffer = blockHeightBuffer.slice(0, 3);
-  }
-  var blockHeightHex = blockHeightBuffer.toString('hex');
-
-  // block hash is encoded in little indian
-  var blockHashHex = Buffer.from(blockHash, 'hex').reverse().toString('hex');
-
   // '14' is the length of the subAddrHex (in bytes)
-  return zopcodes.OP_DUP + zopcodes.OP_HASH160 + zbufferutils.getStringBufferLength(subAddrHex) + subAddrHex + zopcodes.OP_EQUALVERIFY + zopcodes.OP_CHECKSIG + zbufferutils.getStringBufferLength(blockHashHex) + blockHashHex + zbufferutils.getStringBufferLength(blockHeightHex) + blockHeightHex + zopcodes.OP_CHECKBLOCKATHEIGHT;
+  return zopcodes.OP_DUP + zopcodes.OP_HASH160 + zbufferutils.getStringBufferLength(subAddrHex) + subAddrHex + zopcodes.OP_EQUALVERIFY + zopcodes.OP_CHECKSIG;
 }
 
+/*
+ * Given an address, generates a script hash replay type script needed for the transaction
+ * @param {String} address
+ * return {String} scriptHash script
+ */
+function mkScriptHashReplayScript(address) {
+  var addrHex = bs58check.decode(address).toString('hex');
+  var subAddrHex = addrHex.substring(4, addrHex.length); // Cut out the '00' (we also only want 14 bytes instead of 16)
+
+  // '14' is the length of the subAddrHex (in bytes)
+  return zopcodes.OP_HASH160 + zbufferutils.getStringBufferLength(subAddrHex) + subAddrHex + zopcodes.OP_EQUAL;
+
+}
 
 /*
  * Given an address, generates an output script
  * @param {String} address
- * @param {Number} blockHeight
- * @param {Number} blockHash
  * return {String} output script
  */
-function addressToScript(address, blockHeight, blockHash) {
-  // P2SH replay starts with a 's', or 't'
-  if (address[1] === 's' || address[0] === 't') {
-    return mkPubkeyHashScript(address, blockHeight, blockHash);
+function addressToScript(address) {
+  // P2SH replay starts with a 't3'
+  if (address[1] === '3') {
+    return mkScriptHashReplayScript(address);
   }
-
   // P2PKH-replay is a replacement for P2PKH
   // P2PKH-replay starts with a 0
-  return mkPubkeyHashScript(address, blockHeight, blockHash);
+  return mkPubkeyHashReplayScript(address);
 }
 
 /*
@@ -104,10 +100,10 @@ function deserializeTx(hexStr) {
   var offset = 0;
 
   // Out txobj
-  var txObj = { version: 0, locktime: 0, ins: [], outs: []
-
-    // Version
-  };txObj.version = buf.readUInt32LE(offset);
+  var txObj = {
+    version: buf.readUInt32LE(offset),
+    locktime: 0, ins: [], outs: []
+  };
   offset += 4;
 
   // Vins
@@ -219,11 +215,9 @@ function serializeTx(txObj) {
  * Creates a raw transaction
  * @param {[HISTORY]} history type, array of transaction history
  * @param {[RECIPIENTS]} recipient type, array of address on where to send coins to
- * @param {Number} blockHeight (latest - 300)
- * @param {String} blockHash of blockHeight
- * @return {TXOBJ} Transction Object (see TXOBJ type for info about structure)
+  * @return {TXOBJ} Transction Object (see TXOBJ type for info about structure)
  */
-function createRawTx(history, recipients, blockHeight, blockHash) {
+function createRawTx(history, recipients) {
   var txObj = { locktime: 0, version: 1, ins: [], outs: [] };
 
   txObj.ins = history.map(function (h) {
@@ -236,7 +230,7 @@ function createRawTx(history, recipients, blockHeight, blockHash) {
   });
   txObj.outs = recipients.map(function (o) {
     return {
-      script: addressToScript(o.address, blockHeight, blockHash),
+      script: addressToScript(o.address),
       satoshis: o.satoshis
     };
   });
@@ -276,13 +270,13 @@ function signTx(_txObj, i, privKey, compressPubKey, hashcode) {
   const msg = zcrypto.sha256x2(Buffer.from(signingTxWithHashcode, 'hex'));
 
   // Signing it
-  const rawsig = secp256k1.sign(Buffer.from(msg, 'hex'), Buffer.from(privKey, 'hex'), { canonical: true });
+  const rawsig = secp256k1.sign(Buffer.from(msg, 'hex'), Buffer.from(privKey, 'hex')).signature;
 
   // Convert it to DER format
   // Appending 01 to it cause
   // ScriptSig = <varint of total sig length> <SIG from code, including appended 01 SIGNHASH> <length of pubkey (0x21 or 0x41)> <pubkey>
   // https://bitcoin.stackexchange.com/a/36481
-  const signatureDER = Buffer.from(rawsig.toDER()).toString('hex') + '01';
+  const signatureDER = secp256k1.signatureExport(rawsig).toString('hex') + '01';
 
   // Chuck it back into txObj and add pubkey
   // WHAT? If it fails, uncompress/compress it and it should work...
@@ -296,6 +290,8 @@ function signTx(_txObj, i, privKey, compressPubKey, hashcode) {
 module.exports = {
   addressToScript: addressToScript,
   createRawTx: createRawTx,
+  mkPubkeyHashReplayScript: mkPubkeyHashReplayScript,
+  mkScriptHashReplayScript: mkScriptHashReplayScript,
   signatureForm: signatureForm,
   serializeTx: serializeTx,
   deserializeTx: deserializeTx,

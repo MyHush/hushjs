@@ -63,10 +63,10 @@ function WIFToPrivKey(wifPk) {
 }
 
 /*
- * Converts public key to zencash address
+ * Converts public key to hush address
  * @param {String} pubKey (public key)
  * @param {String} pubKeyHash (public key hash (optional, else use defaul))
- * @return {Sting} zencash address
+ * @return {Sting} hush address
  */
 function pubKeyToAddr(pubKey, pubKeyHash) {
   pubKeyHash = pubKeyHash || zconfig.mainnet.pubKeyHash;
