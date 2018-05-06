@@ -18,16 +18,16 @@ yarn test
 ```javascript
 var hush = require('hushjs')
 
-var priv = hushjs.utils.makePrivKey('chris p. bacon, defender of the guardians')
+var priv = hushjs.address.makePrivKey('chris p. bacon, defender of the guardians')
 // 2c3a48576fe6e8a466e78cd2957c9dc62128135540bbea0685d7c4a23ea35a6c
 
-var privWIF = hushjs.utils.privKeyToWIF(priv)
+var privWIF = hushjs.address.privKeyToWIF(priv)
 // 5J9mKPd531Tk4A73kKp4iowoi6EvhEp8QSMAVzrZhuzZkdpYbK8
 
-var pubKey = hushjs.utils.privKeyToPubKey(priv)
+var pubKey = hushjs.address.privKeyToPubKey(priv)
 // 048a789e0910b6aa314f63d2cc666bd44fa4b71d7397cb5466902dc594c1a0a0d2e4d234528ff87b83f971ab2b12cd2939ff33c7846716827a5b0e8233049d8aad
 
-var zAddr = hushjs.utils.pubKeyToAddr(pubKey)
+var zAddr = hushjs.address.pubKeyToAddr(pubKey)
 // t1aYp69J595Rhaof2AEFuEvJjLWVboddB2x
 
 // To create and sign a raw transaction
